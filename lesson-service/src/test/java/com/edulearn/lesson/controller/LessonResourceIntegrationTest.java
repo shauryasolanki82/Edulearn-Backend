@@ -45,18 +45,20 @@ class LessonResourceIntegrationTest {
     private static String studentToken;
     private static Long createdLessonId;
     private static Long createdResourceId;
-    private static final Long COURSE_ID    = 10L;
+    private static final Long COURSE_ID     = 10L;
     private static final Long INSTRUCTOR_ID = 5L;
 
     @BeforeEach
     void setUp() {
+        // FIX: lesson-service JwtUtil has NO jwtExpirationMs field — it hardcodes 3600000L
+        // internally in generateToken(). Only jwtSecret needs to be injected via reflection.
         ReflectionTestUtils.setField(jwtUtil, "jwtSecret",
                 "dGVzdFNlY3JldEtleUZvckpXVFRlc3RpbmdQdXJwb3Nlc09ubHk=");
-        ReflectionTestUtils.setField(jwtUtil, "jwtExpirationMs", 3600000L);
+        // REMOVED: ReflectionTestUtils.setField(jwtUtil, "jwtExpirationMs", 3600000L);
 
         instructorToken = jwtUtil.generateToken(INSTRUCTOR_ID, "instructor@test.com", "INSTRUCTOR");
-        adminToken      = jwtUtil.generateToken(1L,  "admin@test.com",      "ADMIN");
-        studentToken    = jwtUtil.generateToken(20L, "student@test.com",    "STUDENT");
+        adminToken      = jwtUtil.generateToken(1L,  "admin@test.com",   "ADMIN");
+        studentToken    = jwtUtil.generateToken(20L, "student@test.com", "STUDENT");
     }
 
     // ── Add lesson ────────────────────────────────────────────────────────────

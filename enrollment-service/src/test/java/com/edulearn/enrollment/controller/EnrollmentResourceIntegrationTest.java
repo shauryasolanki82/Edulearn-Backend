@@ -34,9 +34,12 @@ class EnrollmentResourceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // FIX: enrollment-service JwtUtil has NO jwtExpirationMs field — expiry is
+        // hardcoded as 3600000L inside generateToken(). Only jwtSecret needs injection.
         ReflectionTestUtils.setField(jwtUtil, "jwtSecret",
                 "dGVzdFNlY3JldEtleUZvckpXVFRlc3RpbmdQdXJwb3Nlc09ubHk=");
-        ReflectionTestUtils.setField(jwtUtil, "jwtExpirationMs", 3600000L);
+        // REMOVED: ReflectionTestUtils.setField(jwtUtil, "jwtExpirationMs", 3600000L);
+
         studentToken    = jwtUtil.generateToken(10L, "student@test.com",    "STUDENT");
         adminToken      = jwtUtil.generateToken(1L,  "admin@test.com",      "ADMIN");
         instructorToken = jwtUtil.generateToken(5L,  "instructor@test.com", "INSTRUCTOR");
@@ -77,6 +80,7 @@ class EnrollmentResourceIntegrationTest {
     @Test @Order(4) @DisplayName("GET /enrollments/check — returns enrolled=true")
     void isEnrolled_true() throws Exception {
         mockMvc.perform(get("/api/v1/enrollments/check")
+                        .header("Authorization", "Bearer " + studentToken)
                         .param("studentId", "10").param("courseId", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enrolled").value(true));
@@ -85,6 +89,7 @@ class EnrollmentResourceIntegrationTest {
     @Test @Order(5) @DisplayName("GET /enrollments/check — returns enrolled=false for unknown")
     void isEnrolled_false() throws Exception {
         mockMvc.perform(get("/api/v1/enrollments/check")
+                        .header("Authorization", "Bearer " + studentToken)
                         .param("studentId", "10").param("courseId", "999"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enrolled").value(false));

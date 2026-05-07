@@ -25,6 +25,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/enrollments/internal/**").permitAll()
                 .requestMatchers("/swagger-ui/**","/api-docs/**","/actuator/**").permitAll()
+                .requestMatchers("/swagger-ui/**","/swagger-ui.html",
+                                 "/v3/api-docs/**","/api-docs/**","/actuator/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/enrollments/course/*/count").permitAll()
                 .anyRequest().authenticated()
             )

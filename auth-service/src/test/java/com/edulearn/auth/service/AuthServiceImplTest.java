@@ -50,26 +50,30 @@ class AuthServiceImplTest {
     // ── register ──────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("register — happy path creates user and returns token")
-    void register_success() {
-        when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("secret")).thenReturn("$hashed");
-        when(userRepository.save(any(User.class))).thenReturn(sampleUser);
-        when(jwtUtil.generateToken(anyLong(), anyString(), anyString())).thenReturn("jwt.token");
-        when(jwtUtil.getExpirationMs()).thenReturn(86400000L);
+@DisplayName("register — happy path creates user and returns token")
+void register_success() {
+    when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
+    when(passwordEncoder.encode("secret")).thenReturn("$hashed");
+    when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+        User u = inv.getArgument(0);
+        u.setUserId(1L);   // simulate DB-generated ID
+        return u;
+    });
+    when(jwtUtil.generateToken(anyLong(), anyString(), anyString())).thenReturn("jwt.token");
+    when(jwtUtil.getExpirationMs()).thenReturn(86400000L);
 
-        AuthDto.RegisterRequest req = AuthDto.RegisterRequest.builder()
-                .fullName("Alice Smith")
-                .email("alice@example.com")
-                .password("secret")
-                .build();
+    AuthDto.RegisterRequest req = AuthDto.RegisterRequest.builder()
+            .fullName("Alice Smith")
+            .email("alice@example.com")
+            .password("secret")
+            .build();
 
-        AuthDto.AuthResponse resp = authService.register(req);
+    AuthDto.AuthResponse resp = authService.register(req);
 
-        assertThat(resp.getAccessToken()).isEqualTo("jwt.token");
-        assertThat(resp.getUser().getEmail()).isEqualTo("alice@example.com");
-        verify(userRepository).save(any(User.class));
-    }
+    assertThat(resp.getAccessToken()).isEqualTo("jwt.token");
+    assertThat(resp.getUser().getEmail()).isEqualTo("alice@example.com");
+    verify(userRepository).save(any(User.class));
+}
 
     @Test
     @DisplayName("register — duplicate email throws DuplicateEmailException")
