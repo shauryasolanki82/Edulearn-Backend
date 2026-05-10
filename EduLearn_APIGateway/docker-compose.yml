@@ -1,0 +1,357 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  EduLearn LMS — Full Stack Docker Compose
+#  Starts: MySQL, all 9 microservices, API Gateway, and React Frontend
+#
+#  Start order:
+#    mysql → all services → api-gateway → frontend
+#
+#  Ports:
+#    3000  → React Frontend (Nginx)
+#    8080  → API Gateway         ← single entry point for all API calls
+#    8081  → Auth Service
+#    8082  → Course Service
+#    8083  → Lesson Service
+#    8084  → Enrollment Service
+#    8085  → Payment Service
+#    8086  → Progress Service
+#    8087  → Assessment Service
+#    8088  → Discussion Service
+#    8089  → Notification Service
+# ═══════════════════════════════════════════════════════════════════════════════
+
+networks:
+  edulearn-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+
+services:
+
+  # ── MySQL (single shared instance, one DB per service) ─────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: edulearn-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: manish
+      MYSQL_DATABASE: edulearn_auth
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmanish"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ── Auth Service (8081) ────────────────────────────────────────────────────
+  auth-service:
+    build:
+      context: ./LMS_Backend/auth-service
+      dockerfile: Dockerfile
+    container_name: edulearn-auth-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_auth?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      APP_JWT_EXPIRATION_MS: 86400000
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Course Service (8082) ──────────────────────────────────────────────────
+  course-service:
+    build:
+      context: ./LMS_Backend/course-service
+      dockerfile: Dockerfile
+    container_name: edulearn-course-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_course?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      APP_AUTH_SERVICE_URL: http://auth-service:8081
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Lesson Service (8083) ──────────────────────────────────────────────────
+  lesson-service:
+    build:
+      context: ./LMS_Backend/lesson-service
+      dockerfile: Dockerfile
+    container_name: edulearn-lesson-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_lesson?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      APP_AUTH_SERVICE_URL: http://auth-service:8081
+      APP_COURSE_SERVICE_URL: http://course-service:8082
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Enrollment Service (8084) ──────────────────────────────────────────────
+  enrollment-service:
+    build:
+      context: ./LMS_Backend/enrollment-service
+      dockerfile: Dockerfile
+    container_name: edulearn-enrollment-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_enrollment?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      APP_COURSE_SERVICE_URL: http://course-service:8082
+      APP_PROGRESS_SERVICE_URL: http://progress-service:8086
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Payment Service (8085) ─────────────────────────────────────────────────
+  payment-service:
+    build:
+      context: ./LMS_Backend/payment-service
+      dockerfile: Dockerfile
+    container_name: edulearn-payment-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_payment?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      APP_ENROLLMENT_SERVICE_URL: http://enrollment-service:8084
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Progress Service (8086) ────────────────────────────────────────────────
+  progress-service:
+    build:
+      context: ./LMS_Backend/progress-service
+      dockerfile: Dockerfile
+    container_name: edulearn-progress-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_progress?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      APP_ENROLLMENT_SERVICE_URL: http://enrollment-service:8084
+      APP_LESSON_SERVICE_URL: http://lesson-service:8083
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Assessment Service (8087) ──────────────────────────────────────────────
+  assessment-service:
+    build:
+      context: ./LMS_Backend/assessment-service
+      dockerfile: Dockerfile
+    container_name: edulearn-assessment-service
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_assessment?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Discussion Service (8088) ──────────────────────────────────────────────
+  discussion-service:
+    build:
+      context: ./LMS_Backend/discussion-service
+      dockerfile: Dockerfile
+    container_name: edulearn-discussion-service
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_discussion?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── Notification Service (8089) ────────────────────────────────────────────
+  notification-service:
+    build:
+      context: ./LMS_Backend/notification-service
+      dockerfile: Dockerfile
+    container_name: edulearn-notification-service
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/edulearn_notification?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manish
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: noreply@edulearn.com
+      SPRING_MAIL_PASSWORD: YOUR_APP_PASSWORD
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8089/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── API Gateway (8080) ─────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: edulearn-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      APP_JWT_SECRET: ZWR1bGVhcm5TZWNyZXRLZXlGb3JKV1QyMDI0UHJvZHVjdGlvblVzZU9ubHk=
+      # Activate docker profile so gateway uses Docker service-name URIs
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      course-service:
+        condition: service_healthy
+      lesson-service:
+        condition: service_healthy
+      enrollment-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      progress-service:
+        condition: service_healthy
+      assessment-service:
+        condition: service_healthy
+      discussion-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    networks:
+      - edulearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── React Frontend (3000 → Nginx 80) ──────────────────────────────────────
+  frontend:
+    build:
+      context: ./edulearn-react
+      dockerfile: Dockerfile
+      # NOTE: uses the updated frontend folder that has Dockerfile + nginx.conf
+    container_name: edulearn-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - edulearn-network
